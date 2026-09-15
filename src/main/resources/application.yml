@@ -1,0 +1,95 @@
+spring:
+  application:
+    name: payment-platform
+
+  # ===== Database Connection =====
+  # Spring Boot reads these to create a connection pool (HikariCP by default).
+  # Change the url/username/password to match your local PostgreSQL.
+  datasource:
+    url: jdbc:postgresql://localhost:5432/payment_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Max pool size: how many concurrent DB connections are allowed.
+      # For 50 TPS, 10 is plenty for a local dev environment.
+      maximum-pool-size: 10
+      # How long (ms) to wait for a connection before throwing an exception.
+      connection-timeout: 30000
+
+  # ===== JPA / Hibernate =====
+  jpa:
+    # 'validate' tells Hibernate to CHECK that the DB matches the entities,
+    # but NOT create or change any tables. Flyway owns schema creation.
+    # This is the safe production setting.
+    hibernate:
+      ddl-auto: validate
+    # Log all SQL to stdout during development — very useful for learning.
+    # Set to false in production.
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        # Tell Hibernate we are using PostgreSQL dialect explicitly.
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # ===== Flyway (Migration Runner) =====
+  flyway:
+    # Where Flyway looks for migration scripts.
+    # By convention: src/main/resources/db/migration/
+    locations: classpath:db/migration
+    # If Flyway finds a migration that was already applied but its checksum changed,
+    # it throws an error to prevent silent corruption. 'true' means strict mode.
+    validate-on-migrate: true
+    # The schema Flyway will track its own migration history in.
+    default-schema: public
+
+  # ===== Task Scheduling =====
+  # Enables Spring's @Scheduled annotation (used by the PaymentSchedulerRunner).
+  task:
+    scheduling:
+      pool:
+        size: 5
+
+# ===== Actuator (Health & Metrics) =====
+management:
+  endpoints:
+    web:
+      exposure:
+        # Expose health and info only. Add 'metrics' later if needed.
+        include: health,info,metrics
+  endpoint:
+    health:
+      # 'always' means return DB status even if it's DOWN (useful for debugging).
+      show-details: always
+
+# ===== Server =====
+server:
+  port: 8080
+  # Adds /api prefix to all controllers.
+  # So POST /v1/payments becomes POST /api/v1/payments.
+  servlet:
+    context-path: /api
+
+# ===== Logging =====
+logging:
+  level:
+    # Our own code: DEBUG so we see everything during development.
+    com.payment: DEBUG
+    # Hibernate SQL parameters (shows actual values, not just '?').
+    org.hibernate.orm.jdbc.bind: TRACE
+  pattern:
+    # Structured log line: timestamp | level | correlation-id (MDC) | logger | message
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%5p] [%X{paymentId}] %logger{36} - %msg%n"
+
+# ===== Payment Platform Custom Config =====
+# Our own configuration keys — we'll bind these to a @ConfigurationProperties class.
+payment:
+  psp:
+    # Simulated failure rate for MockPspService (0.0 = never fails, 1.0 = always fails).
+    mock-failure-rate: 0.10
+    # Simulated processing delay in milliseconds.
+    mock-delay-ms: 500
+  scheduler:
+    # How often (ms) the PaymentSchedulerRunner checks for due scheduled payments.
+    poll-interval-ms: 60000

@@ -1,0 +1,48 @@
+services:
+
+  # ===== PostgreSQL =====
+  # The database. Data is persisted in a named volume so it survives restarts.
+  postgres:
+    image: postgres:16-alpine
+    container_name: payment-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: payment_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ===== Payment Platform App =====
+  # Built and run using Maven inside Docker.
+  # The source directory is mounted so code changes are picked up on restart.
+  app:
+    image: maven:3.9.6-eclipse-temurin-21
+    container_name: payment-app
+    working_dir: /app
+    volumes:
+      # Mount source code into the container
+      - .:/app
+      # Cache Maven dependencies in a named volume — avoids re-downloading on every run
+      - maven_cache:/root/.m2
+    environment:
+      # Override the DB URL to point to the 'postgres' service (Docker DNS)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports:
+      - "8080:8080"
+    command: mvn spring-boot:run
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  maven_cache:
